@@ -1,0 +1,116 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
+import time
+
+# 1. Data Generation
+# Use a time-based seed so outputs differ each run
+np.random.seed(int(time.time()))
+
+n_days = 10000
+
+# Define Poisson rates by hour
+mu_by_hour = np.array(
+    [2]*7 +      # 0–6 am (night)
+    [12]*3 +     # 7–9 am (morning peak)
+    [5]*5 +      # 10 am–2 pm (midday)
+    [15]*3 +     # 3–5 pm (evening peak)
+    [5]*2 +      # 6–7 pm (early evening)
+    [2]*4        # 8–11 pm (night)
+)[:24]
+
+rentals = np.random.poisson(lam=mu_by_hour, size=(n_days, 24))
+
+durations_list = []
+for day in range(n_days):
+    for h in range(24):
+        count = rentals[day, h]
+        if count > 0:
+            durations_list.append(np.random.exponential(scale=15, size=count))
+durations = np.concatenate(durations_list)
+
+# 2. Probability Estimation & Metrics
+p_over_10    = np.mean(rentals > 10)
+first_day    = rentals[0]
+hour_max     = np.argmax(first_day)
+max_val      = first_day[hour_max]
+p_max_at_hr  = np.mean(rentals[:, hour_max] == max_val)
+p_dur_over30 = np.mean(durations > 30)
+p_dur_20_25  = np.mean((durations >= 20) & (durations <= 25))
+mean_dur     = durations.mean()
+var_dur      = durations.var(ddof=1)
+
+print(f"P(rentals > 10) = {p_over_10:.4f}")
+print(f"Hour of max rentals on Day 1 = {hour_max}")
+print(f"P(rentals = {max_val} at hour {hour_max}) = {p_max_at_hr:.4f}")
+print(f"P(duration > 30 min) = {p_dur_over30:.4f}")
+print(f"P(duration 20–25 min) = {p_dur_20_25:.4f}")
+print(f"Mean duration = {mean_dur:.2f}")
+print(f"Variance duration = {var_dur:.2f}")
+
+# 3. Seven Plots
+hours = np.arange(24)
+
+# a) Day 1 rentals
+plt.figure(figsize=(10, 4))
+plt.bar(hours, first_day, color=['red' if x>10 else 'blue' for x in first_day])
+plt.title("a) Rentals by Hour on First Day")
+plt.xlabel("Hour")
+plt.ylabel("Rentals")
+plt.show()
+
+# b) Average rentals
+avg_rentals = rentals.mean(axis=0)
+plt.figure(figsize=(10, 4))
+plt.bar(hours, avg_rentals, color=['red' if x>10 else 'blue' for x in avg_rentals])
+plt.title("b) Average Rentals by Hour")
+plt.xlabel("Hour")
+plt.ylabel("Avg Rentals")
+plt.show()
+
+# c) Random day trend
+rand_day = np.random.randint(n_days)
+plt.figure(figsize=(10, 4))
+plt.plot(hours, rentals[rand_day], marker='o')
+plt.title(f"c) Rentals on Random Day {rand_day}")
+plt.xlabel("Hour")
+plt.ylabel("Rentals")
+plt.show()
+
+# d) Frequency of counts
+counts, freqs = np.unique(rentals[rand_day], return_counts=True)
+plt.figure(figsize=(8, 4))
+plt.bar(counts, freqs, color='green')
+plt.title("d) Frequency of Hourly Rental Counts")
+plt.xlabel("Rental Count")
+plt.ylabel("Frequency")
+plt.show()
+
+# e) Duration histogram
+plt.figure(figsize=(8, 4))
+plt.hist(durations, bins=30, color='skyblue', edgecolor='black')
+plt.axvline(mean_dur, color='red', linestyle='--', label=f"Mean {mean_dur:.1f}")
+plt.title("e) Histogram of Ride Durations")
+plt.xlabel("Duration (min)")
+plt.ylabel("Frequency")
+plt.legend()
+plt.show()
+
+# f) KDE of durations
+kde = gaussian_kde(durations)
+x_vals = np.linspace(0, durations.max(), 500)
+plt.figure(figsize=(8, 4))
+plt.plot(x_vals, kde(x_vals), color='purple')
+plt.title("f) Smoothed Density of Ride Durations")
+plt.xlabel("Duration (min)")
+plt.ylabel("Density")
+plt.show()
+
+# g) Highlight durations >30 min
+plt.figure(figsize=(8, 4))
+plt.hist(durations, bins=30, color='lightgray', edgecolor='black')
+plt.hist(durations[durations>30], bins=30, color='orange', edgecolor='black')
+plt.title("g) Highlight >30 Min Ride Durations")
+plt.xlabel("Duration (min)")
+plt.ylabel("Frequency")
+plt.show()
